@@ -53,18 +53,16 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// Consumption Plan
+// Consumption Plan (Windows to avoid VM quota limits on internal subscriptions)
 resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: hostingPlanName
   location: location
   sku: {
     name: 'Y1'
     tier: 'Dynamic'
-    size: 'Y1'
-    family: 'Y'
   }
   properties: {
-    reserved: true // Linux
+    reserved: false
   }
 }
 
@@ -72,7 +70,7 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
 resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: functionAppName
   location: location
-  kind: 'functionapp,linux'
+  kind: 'functionapp'
   identity: {
     type: 'SystemAssigned'
   }
@@ -81,7 +79,6 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     httpsOnly: true
     siteConfig: {
       pythonVersion: '3.11'
-      linuxFxVersion: 'Python|3.11'
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
