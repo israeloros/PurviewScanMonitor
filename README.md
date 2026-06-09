@@ -43,7 +43,7 @@ An enterprise-grade Azure Function solution that monitors Microsoft Purview Data
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11 (required by Azure Functions v4 — see [supported versions](https://learn.microsoft.com/en-us/azure/azure-functions/supported-languages#languages-by-runtime-version))
 - Azure CLI
 - Azure Functions Core Tools v4
 - Azure subscription with:
@@ -268,10 +268,14 @@ Optional (leave empty to disable):
 |------|--------|
 | All project files | Published as-is. **No modifications needed** beyond Step 3. |
 
-```bash
+> ⚠️ **Important**: Python Azure Functions require a **Linux** Function App. The Bicep template in Step 1 creates one automatically. If you created your Function App manually, ensure it uses Linux as the operating system.
+
+```powershell
 cd scan-monitoring
-func azure functionapp publish purview-scan-monitor-func --python
+func azure functionapp publish purview-scan-monitor-func --python --build remote
 ```
+
+> The `--build remote` flag performs the pip install on the Linux host, avoiding cross-platform wheel issues when publishing from Windows.
 
 ---
 
@@ -364,11 +368,10 @@ traces
 
 ## Local Development
 
-```bash
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
+```powershell
+# Create virtual environment (Python 3.11 required)
+py -3.11 -m venv .venv
+.venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -376,6 +379,8 @@ pip install -r requirements.txt
 # Run locally
 func start
 ```
+
+> ⚠️ **Python version**: Azure Functions v4 supports Python 3.8–3.11. Ensure you have Python 3.11 installed and use `py -3.11` (Windows Python Launcher) to create the virtual environment. Using a newer Python version (e.g., 3.12+) will cause deployment errors.
 
 ## Cost Optimization
 
@@ -389,7 +394,7 @@ func start
 
 ## Testing
 
-```bash
+```powershell
 pip install pytest
 pytest tests/ -v
 ```

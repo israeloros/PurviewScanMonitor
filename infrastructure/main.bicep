@@ -53,7 +53,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// Consumption Plan (Windows to avoid VM quota limits on internal subscriptions)
+// Consumption Plan (Linux — required for Python Azure Functions)
 resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: hostingPlanName
   location: location
@@ -62,7 +62,7 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
     tier: 'Dynamic'
   }
   properties: {
-    reserved: false
+    reserved: true
   }
 }
 
@@ -70,7 +70,7 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
 resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: functionAppName
   location: location
-  kind: 'functionapp'
+  kind: 'functionapp,linux'
   identity: {
     type: 'SystemAssigned'
   }
@@ -78,7 +78,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: hostingPlan.id
     httpsOnly: true
     siteConfig: {
-      pythonVersion: '3.11'
+      linuxFxVersion: 'Python|3.11'
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
