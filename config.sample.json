@@ -1,0 +1,19 @@
+{
+  "defaultThresholdMinutes": 60,
+  "autoCancel": true,
+  "notifications": true,
+  "overrides": [
+    {
+      "scanName": "Finance*",
+      "thresholdMinutes": 30
+    },
+    {
+      "scanName": "HR_*",
+      "thresholdMinutes": 45
+    },
+    {
+      "scanId": "abc123-run-id",
+      "thresholdMinutes": 15
+    }
+  ]
+}
