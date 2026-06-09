@@ -6,20 +6,20 @@ An enterprise-grade Azure Function solution that monitors Microsoft Purview Data
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Azure Function App                     │
-│                   (Consumption Plan)                      │
-│                                                          │
-│  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐ │
+│                    Azure Function App                   │
+│                   (Consumption Plan)                    │
+│                                                         │
+│  ┌───────────┐  ┌──────────────┐  ┌───────────────────┐ │
 │  │  Timer    │→ │  Monitor     │→ │  Purview Client   │ │
 │  │  Trigger  │  │  Engine      │  │  (REST API)       │ │
-│  └──────────┘  └──────┬───────┘  └───────────────────┘ │
-│                        │                                 │
-│              ┌─────────┴─────────┐                      │
-│              │                    │                      │
-│  ┌───────────▼──┐  ┌────────────▼────────┐             │
+│  └───────────┘  └──────┬───────┘  └───────────────────┘ │
+│                        │                                │
+│              ┌─────────┴──────────┐                     │
+│              │                    │                     │
+│  ┌───────────▼──┐  ┌────────────▼─────────┐             │
 │  │  Config      │  │  Notification        │             │
 │  │  Provider    │  │  Handler             │             │
-│  └──────┬───────┘  └────────┬────────────┘             │
+│  └──────┬───────┘  └─────────┬────────────┘             │
 └─────────┼────────────────────┼──────────────────────────┘
           │                    │
           ▼                    ▼
@@ -186,9 +186,19 @@ az storage entity insert \
 
 You can also manage table entities via [Azure Storage Explorer](https://learn.microsoft.com/en-us/azure/vs-azure-tools-storage-manage-with-storage-explorer) for a GUI experience.
 
-## Deployment
+## Deployment — Step-by-Step
 
-### 1. Deploy Infrastructure (Bicep)
+> Follow each step **in order**. Each step lists the file(s) you must edit or use and the commands to run.
+
+---
+
+### Step 1: Edit Bicep Parameters (optional)
+
+| File | Action |
+|------|--------|
+| `infrastructure/main.bicep` | Review the `param` defaults at the top. Override at deploy time (below) or edit directly if you want different base names. **No rename needed.** |
+
+Deploy infrastructure:
 
 ```bash
 az group create --name rg-purview-monitor --location eastus2
@@ -199,9 +209,15 @@ az deployment group create \
   --parameters purviewAccountName=<your-purview-account>
 ```
 
-### 2. Assign Purview RBAC
+> This creates: Storage Account, Config Table, App Insights, Function App with Managed Identity.
 
-Grant the Function App's Managed Identity the **Purview Data Source Administrator** role:
+---
+
+### Step 2: Assign Purview RBAC
+
+| File | Action |
+|------|--------|
+| *(none — CLI only)* | Grant the Function App's identity access to Purview. |
 
 ```bash
 FUNC_PRINCIPAL_ID=$(az functionapp identity show \
@@ -209,21 +225,63 @@ FUNC_PRINCIPAL_ID=$(az functionapp identity show \
   --resource-group rg-purview-monitor \
   --query principalId -o tsv)
 
-# Assign at the Purview account level
 az role assignment create \
   --assignee $FUNC_PRINCIPAL_ID \
   --role "Purview Data Source Administrator" \
   --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Purview/accounts/<account>
 ```
 
-### 3. Deploy Function Code
+Replace `<sub-id>`, `<rg>`, and `<account>` with your actual subscription ID, resource group, and Purview account name.
+
+---
+
+### Step 3: Configure `local.settings.json`
+
+| File | Action |
+|------|--------|
+| `local.settings.json` | **Edit in place** — replace every `<placeholder>` value with your real values (see the [Configuration](#configuration) section above for field descriptions). |
+
+Required replacements:
+
+| Placeholder | Replace With |
+|-------------|-------------|
+| `<your-purview-account-name>` | Your Purview account name (e.g., `contoso-purview`) |
+| `<your-storage-account>` | Storage account name created by Bicep in Step 1 (output: `storageAccountName`) |
+
+Optional (leave empty to disable):
+
+| Setting | When to Fill In |
+|---------|----------------|
+| `NOTIFICATION_WEBHOOK_URL` | If you want Teams/Slack alerts |
+| `SENDGRID_API_KEY` | If you want email alerts |
+| `NOTIFICATION_EMAIL_TO` / `FROM` | If using SendGrid |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | For local telemetry (auto-set in Azure by Bicep) |
+
+> ⚠️ **Do not commit this file** — it contains secrets. It is already in `.gitignore`.  
+> For Azure deployment, these values are set automatically by the Bicep template (Step 1). Only fill this file for **local development**.
+
+---
+
+### Step 4: Deploy Function Code
+
+| File | Action |
+|------|--------|
+| All project files | Published as-is. **No modifications needed** beyond Step 3. |
 
 ```bash
 cd scan-monitoring
 func azure functionapp publish purview-scan-monitor-func --python
 ```
 
-### 4. Seed Configuration Table
+---
+
+### Step 5: Seed the Configuration Table
+
+| File | Action |
+|------|--------|
+| `config.sample.json` | **Reference only** — use it as a guide for the values below. Do **not** rename or upload this file. |
+
+Run these commands to populate Azure Table Storage with your monitoring rules:
 
 ```bash
 az storage entity insert \
@@ -234,12 +292,27 @@ az storage entity insert \
     AutoCancelEnabled=true \
     NotificationEnabled=true
 
+# (Optional) Add per-scan overrides
 az storage entity insert \
   --account-name <storage-account> \
   --table-name ScanMonitorConfig \
   --entity PartitionKey=override RowKey=finance-override \
     ScanName="Finance*" ThresholdMinutes=30
 ```
+
+Replace `<storage-account>` with the storage account name from Step 1.
+
+---
+
+### Quick Reference: Files Summary
+
+| File | Must Edit? | Purpose |
+|------|-----------|---------|
+| `infrastructure/main.bicep` | No (override via `--parameters`) | IaC template — deploys all Azure resources |
+| `local.settings.json` | **Yes** (for local dev only) | Environment variables with your account details |
+| `host.json` | No (sensible defaults) | Function runtime settings |
+| `config.sample.json` | **No** (reference only) | Example of Table Storage config — not deployed directly |
+| `function_app.py`, `clients/`, `engine/`, `models/`, `notifications/`, `config/` | No | Application code — deployed as-is |
 
 ## Purview REST API Reference
 
