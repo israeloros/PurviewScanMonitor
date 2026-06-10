@@ -237,6 +237,8 @@ Replace `<sub-id>`, `<rg>`, and `<account>` with your actual subscription ID, re
 
 ### Step 3: Configure `local.settings.json`
 
+First make a copy of local.settings.sample.json into the local.settings.json.
+
 | File | Action |
 |------|--------|
 | `local.settings.json` | **Edit in place** — replace every `<placeholder>` value with your real values (see the [Configuration](#configuration) section above for field descriptions). |
@@ -271,8 +273,10 @@ Optional (leave empty to disable):
 > ⚠️ **Important**: Python Azure Functions require a **Linux** Function App. The Bicep template in Step 1 creates one automatically. If you created your Function App manually, ensure it uses Linux as the operating system.
 
 ```powershell
-cd scan-monitoring
+cd PurviewScanMonitor
 func azure functionapp publish purview-scan-monitor-func --python --build remote
+
+**Note**: Depending on your development environment, you might need to replace --build remote with --build local for the deployment of your function.
 ```
 
 > The `--build remote` flag performs the pip install on the Linux host, avoiding cross-platform wheel issues when publishing from Windows.
