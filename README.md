@@ -65,7 +65,8 @@ This file provides environment variables for the Azure Function runtime. It is u
 
 | Setting | Description | Where to Obtain |
 |---------|-------------|-----------------|
-| `AzureWebJobsStorage` | Connection string for the Azure Function's internal storage (triggers, timers, etc.). Use `"UseDevelopmentStorage=true"` for local development with Azurite. | Azure Portal → Storage Account → **Access keys** → Connection string. [Learn more](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage) |
+| `AzureWebJobsStorage` | Connection string for local development only. Use `"UseDevelopmentStorage=true"` for Azurite. **Not used in deployed environments** — identity-based auth is used instead (see below). | Static value for local dev — do not change. |
+| `AzureWebJobsStorage__accountName` | Storage account name for identity-based authentication (deployed environments). The Function App's Managed Identity authenticates via RBAC instead of keys. Leave empty for local dev with Azurite. | Azure Portal → Storage Account → **Overview** → Name. [Learn more](https://learn.microsoft.com/en-us/azure/azure-functions/functions-reference?tabs=blob&pivots=programming-language-python#connecting-to-host-storage-with-an-identity) |
 | `FUNCTIONS_WORKER_RUNTIME` | Must be `"python"`. Indicates the language runtime. | Static value — do not change. |
 | `PURVIEW_ACCOUNT_NAME` | The name of your Microsoft Purview (Data Map) account. | Azure Portal → Microsoft Purview account → **Overview** → Account name. [Learn more](https://learn.microsoft.com/en-us/purview/create-microsoft-purview-portal) |
 | `CONFIG_STORAGE_ACCOUNT_URL` | The Table Storage endpoint URL for configuration data. Format: `https://<account>.table.core.windows.net` | Azure Portal → Storage Account → **Endpoints** → Table service URL. [Learn more](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview#storage-account-endpoints) |
@@ -201,7 +202,7 @@ You can also manage table entities via [Azure Storage Explorer](https://learn.mi
 Deploy infrastructure:
 
 ```bash
-az group create --name rg-purview-monitor --location eastus2
+az group create --name rg-purview-monitor --location centralus
 
 az deployment group create \
   --resource-group rg-purview-monitor \
@@ -209,7 +210,7 @@ az deployment group create \
   --parameters purviewAccountName=<your-purview-account>
 ```
 
-> This creates: Storage Account, Config Table, App Insights, Function App with Managed Identity.
+> This creates: Storage Account (shared key access disabled), Config Table, App Insights, Function App with Managed Identity and RBAC role assignments for identity-based storage access.
 
 ---
 
@@ -347,9 +348,15 @@ POST https://{account}.purview.azure.com/scan/datasources/{dsName}/scans/{scanNa
 
 ## Security
 
-- **Managed Identity**: All Azure service authentication uses System-Assigned Managed Identity
+- **Managed Identity**: All Azure service authentication uses System-Assigned Managed Identity — including the Function App's internal storage connection
 - **No secrets in code**: Credentials are resolved at runtime via `DefaultAzureCredential`
-- **Least privilege**: Function only needs Table Data Reader + Purview Data Source Admin
+- **No shared key access**: Storage account key-based authentication is disabled (`allowSharedKeyAccess: false`); all access is via RBAC
+- **Least privilege**: Function App identity is granted only the required RBAC roles:
+  - Storage Blob Data Owner (Function runtime internals)
+  - Storage Queue Data Contributor (Function runtime internals)
+  - Storage Table Data Contributor (Function runtime internals)
+  - Storage Table Data Reader (config reads)
+  - Purview Data Source Administrator (scan monitoring & cancellation)
 - **TLS 1.2**: Enforced on storage account
 
 ## Observability
